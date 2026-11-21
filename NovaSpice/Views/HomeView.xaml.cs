@@ -29,6 +29,7 @@ public sealed partial class HomeView : UserControl
     void LtButton_Click(object sender, RoutedEventArgs e) => App.Main!.Navigate("settings");
     async void OpenCircuit_Click(object sender, RoutedEventArgs e) => await App.Main!.OpenDialogAsync(false);
     async void OpenRaw_Click(object sender, RoutedEventArgs e) => await App.Main!.OpenDialogAsync(true);
+    void New_Click(object sender, RoutedEventArgs e) => App.Main!.NewSchematic();
     void DemoBuck_Click(object sender, RoutedEventArgs e) => App.Main!.OpenDemo("buck");
     void DemoRc_Click(object sender, RoutedEventArgs e) => App.Main!.OpenDemo("rc");
     void Recent_ItemClick(object sender, ItemClickEventArgs e) { if (e.ClickedItem is string p) App.Main!.OpenPath(p); }

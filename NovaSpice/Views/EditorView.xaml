@@ -4,32 +4,111 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:c="using:NovaSpice.Controls">
 
-    <Grid Padding="12,4,16,12">
-        <Grid x:Name="Body" ColumnSpacing="12">
+    <UserControl.Resources>
+        <Style x:Key="ToolToggle" TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="MinWidth" Value="40"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+        <Style x:Key="ToolButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="MinWidth" Value="40"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+        <Style x:Key="PartIcon" TargetType="Path">
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="StrokeThickness" Value="1.6"/>
+            <Setter Property="StrokeLineJoin" Value="Round"/>
+            <Setter Property="StrokeStartLineCap" Value="Round"/>
+            <Setter Property="StrokeEndLineCap" Value="Round"/>
+            <Setter Property="Stroke" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Padding="12,4,16,12" RowSpacing="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Drawing toolbar -->
+        <Grid x:Name="Toolbar" ColumnSpacing="6" Visibility="Collapsed">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="SchCol" Width="3*"/>
-                <ColumnDefinition x:Name="TextCol" Width="2*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <ToggleButton x:Name="TSelect" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="select" ToolTipService.ToolTip="Select / move (Esc)">
+                    <FontIcon Glyph="&#xE8B0;" FontSize="16"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TWire" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="wire" ToolTipService.ToolTip="Wire (W or F3)">
+                    <Path Style="{StaticResource PartIcon}" Data="M2,16 L10,16 L10,4 L18,4"/>
+                </ToggleButton>
+                <Border Width="1" Margin="4,6" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+                <ToggleButton x:Name="TRes" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="res" ToolTipService.ToolTip="Resistor (R)">
+                    <Path Style="{StaticResource PartIcon}" Data="M0,10 L4,10 L6,5 L9,15 L12,5 L15,15 L17,10 L20,10"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TCap" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="cap" ToolTipService.ToolTip="Capacitor (C)">
+                    <Path Style="{StaticResource PartIcon}" Data="M0,10 L8,10 M8,3 L8,17 M12,3 L12,17 M12,10 L20,10"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TInd" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="ind" ToolTipService.ToolTip="Inductor (L)">
+                    <Path Style="{StaticResource PartIcon}" Data="M0,13 L2,13 C2,5 7,5 7,13 C7,5 12,5 12,13 C12,5 17,5 17,13 L20,13"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TDiode" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="diode" ToolTipService.ToolTip="Diode (D)">
+                    <Path Style="{StaticResource PartIcon}" Data="M0,10 L6,10 M6,4 L6,16 L15,10 Z M15,4 L15,16 M15,10 L20,10"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TVolt" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="voltage" ToolTipService.ToolTip="Voltage source (V)">
+                    <Path Style="{StaticResource PartIcon}" Data="M10,1 A9,9 0 1 1 9.99,1 M10,4.5 L10,9.5 M7.5,7 L12.5,7 M7.5,14 L12.5,14"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TCurr" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="current" ToolTipService.ToolTip="Current source (I)">
+                    <Path Style="{StaticResource PartIcon}" Data="M10,1 A9,9 0 1 1 9.99,1 M10,5 L10,15 M7,12 L10,15 L13,12"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TGround" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="ground" ToolTipService.ToolTip="Ground (G)">
+                    <Path Style="{StaticResource PartIcon}" Data="M10,2 L10,9 M3,9 L17,9 L10,17 Z"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TLabel" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="label" ToolTipService.ToolTip="Net label (N or F4)">
+                    <FontIcon Glyph="&#xE8EC;" FontSize="16"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TText" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="text" ToolTipService.ToolTip="SPICE directive / comment (T)">
+                    <TextBlock Text=".op" FontFamily="Cascadia Mono, Consolas" FontSize="13" FontWeight="SemiBold"/>
+                </ToggleButton>
+                <Border Width="1" Margin="4,6" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+                <Button Style="{StaticResource ToolButton}" Click="Rotate_Click" ToolTipService.ToolTip="Rotate (Ctrl+R)"><FontIcon Glyph="&#xE7AD;" FontSize="16"/></Button>
+                <Button Style="{StaticResource ToolButton}" Click="Mirror_Click" ToolTipService.ToolTip="Mirror (Ctrl+E)"><FontIcon Glyph="&#xE8AB;" FontSize="16"/></Button>
+                <Button Style="{StaticResource ToolButton}" Click="Delete_Click" ToolTipService.ToolTip="Delete (Del)"><FontIcon Glyph="&#xE74D;" FontSize="16"/></Button>
+                <Border Width="1" Margin="4,6" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+                <Button Style="{StaticResource ToolButton}" Click="Undo_Click" ToolTipService.ToolTip="Undo (Ctrl+Z)"><FontIcon Glyph="&#xE7A7;" FontSize="16"/></Button>
+                <Button Style="{StaticResource ToolButton}" Click="Redo_Click" ToolTipService.ToolTip="Redo (Ctrl+Y)"><FontIcon Glyph="&#xE7A6;" FontSize="16"/></Button>
+                <Button Style="{StaticResource ToolButton}" Click="Fit_Click" ToolTipService.ToolTip="Fit to window (F)"><FontIcon Glyph="&#xE9A6;" FontSize="16"/></Button>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                <TextBlock x:Name="Dirty" Text="● modified" VerticalAlignment="Center" FontSize="12"
+                           Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="Collapsed"/>
+                <ToggleButton x:Name="SourceToggle" Style="{StaticResource ToolToggle}" Click="SourceToggle_Click" ToolTipService.ToolTip="Show the .asc / netlist text">
+                    <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE943;" FontSize="14"/><TextBlock Text="Source"/></StackPanel>
+                </ToggleButton>
+            </StackPanel>
+        </Grid>
+
+        <Grid x:Name="Body" Grid.Row="1" ColumnSpacing="12" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="SchCol" Width="*"/>
+                <ColumnDefinition x:Name="TextCol" Width="0"/>
             </Grid.ColumnDefinitions>
 
             <Grid x:Name="SchPanel" CornerRadius="12" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <c:SchematicCanvas x:Name="Sch"/>
-                <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12" Padding="10,4" CornerRadius="8"
-                        Background="{ThemeResource AcrylicInAppFillColorDefaultBrush}">
-                    <TextBlock Text="Schematic · wheel = zoom · drag = pan · double-click = probe / fit" FontSize="12"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                </Border>
             </Grid>
 
-            <Grid Grid.Column="1" RowSpacing="8">
+            <Grid x:Name="TextPanel" Grid.Column="1" RowSpacing="8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <Grid>
-                    <TextBlock x:Name="TextTitle" Text="Netlist" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="Dirty" Text="● modified" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12"
-                               Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="Collapsed"/>
-                </Grid>
+                <TextBlock x:Name="TextTitle" Text="Netlist" Style="{StaticResource BodyStrongTextBlockStyle}"/>
                 <TextBox x:Name="Code" Grid.Row="1" AcceptsReturn="True" TextWrapping="NoWrap" IsSpellCheckEnabled="False"
                          FontFamily="Cascadia Mono, Consolas" FontSize="13.5" CornerRadius="12"
                          ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -37,11 +116,12 @@
             </Grid>
         </Grid>
 
-        <StackPanel x:Name="Empty" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+        <StackPanel x:Name="Empty" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
             <FontIcon Glyph="&#xE943;" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
             <TextBlock Text="No circuit open" FontSize="20" HorizontalAlignment="Center"/>
-            <TextBlock Text="Open an .asc schematic or a netlist, or start from a demo on Home."
+            <TextBlock Text="Draw a new schematic, open an .asc or netlist, or start from a demo."
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center"/>
+            <Button Content="New schematic  (Ctrl+N)" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" Click="New_Click" CornerRadius="8"/>
         </StackPanel>
     </Grid>
 </UserControl>

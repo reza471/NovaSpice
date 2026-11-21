@@ -41,8 +41,15 @@
 
             <Grid ColumnSpacing="16">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
+                    <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
                 </Grid.ColumnDefinitions>
+                <Button Grid.Column="4" Style="{StaticResource CardButton}" Click="New_Click">
+                    <StackPanel Spacing="10">
+                        <FontIcon Glyph="&#xE70F;" FontSize="28" HorizontalAlignment="Left" Foreground="#B48CFF"/>
+                        <TextBlock Text="Draw a schematic" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="Place parts and wires with LTspice's hotkeys, then press F5." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                </Button>
                 <Button Style="{StaticResource CardButton}" Click="OpenCircuit_Click">
                     <StackPanel Spacing="10">
                         <FontIcon Glyph="&#xE8E5;" FontSize="28" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>

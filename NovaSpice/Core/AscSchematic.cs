@@ -1,51 +1,78 @@
 using System.Numerics;
+using System.Text;
 
 namespace NovaSpice.Core;
 
-public sealed record AscWire(int X1, int Y1, int X2, int Y2);
-public sealed record AscFlag(int X, int Y, string Name);
-public sealed record AscText(int X, int Y, string Text, bool Directive);
+public sealed class AscWire
+{
+    public int X1, Y1, X2, Y2;
+    public AscWire() { }
+    public AscWire(int x1, int y1, int x2, int y2) { X1 = x1; Y1 = y1; X2 = x2; Y2 = y2; }
+}
+
+public sealed class AscFlag
+{
+    public int X, Y;
+    public string Name = "";
+    public bool IsGround => Name == "0";
+}
+
+public sealed class AscText
+{
+    public int X, Y;
+    public string Text = "";
+    public bool Directive;
+    public string Align = "Left";
+    public int Size = 2;
+}
 
 public sealed class AscSymbol
 {
+    public string RawType = "";
     public string Type = "";
     public string Rot = "R0";
     public int X, Y;
     public Dictionary<string, string> Attrs = new(StringComparer.OrdinalIgnoreCase);
-    public string Inst => Attrs.GetValueOrDefault("InstName", "");
-    public string Value => Attrs.GetValueOrDefault("Value", "");
+    public List<string> Extra = new();   // WINDOW lines etc., written back untouched
+    public string Inst { get => Attrs.GetValueOrDefault("InstName", ""); set => Attrs["InstName"] = value; }
+    public string Value { get => Attrs.GetValueOrDefault("Value", ""); set => Attrs["Value"] = value; }
 }
 
-/// <summary>Parser for LTspice .asc schematics plus simple net tracing for probing.</summary>
+/// <summary>Editable LTspice .asc document: parse, modify, serialize (round-trips unknown lines).</summary>
 public sealed class AscSchematic
 {
+    public string Version = "4";
+    public string Sheet = "SHEET 1 880 680";
     public List<AscWire> Wires = new();
     public List<AscFlag> Flags = new();
     public List<AscSymbol> Symbols = new();
     public List<AscText> Texts = new();
+    public List<string> Extra = new();   // IOPIN, DATAFLAG, LINE, RECTANGLE... kept verbatim
     public List<string?> WireNets = new();
 
     public static AscSchematic Parse(string text)
     {
         var s = new AscSchematic();
         AscSymbol? cur = null;
-        foreach (var line in text.Replace("\r", "").Split('\n'))
+        foreach (var raw in text.Replace("\r", "").Split('\n'))
         {
+            var line = raw.TrimEnd();
             var p = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (p.Length == 0) continue;
             switch (p[0].ToUpperInvariant())
             {
+                case "VERSION": s.Version = p.Length > 1 ? p[1] : "4"; cur = null; break;
+                case "SHEET": s.Sheet = line.Trim(); cur = null; break;
                 case "WIRE" when p.Length >= 5:
-                    s.Wires.Add(new AscWire(I(p[1]), I(p[2]), I(p[3]), I(p[4])));
-                    break;
+                    s.Wires.Add(new AscWire(I(p[1]), I(p[2]), I(p[3]), I(p[4]))); cur = null; break;
                 case "FLAG" when p.Length >= 4:
-                    s.Flags.Add(new AscFlag(I(p[1]), I(p[2]), p[3]));
-                    break;
+                    s.Flags.Add(new AscFlag { X = I(p[1]), Y = I(p[2]), Name = p[3] }); cur = null; break;
                 case "SYMBOL" when p.Length >= 4:
-                    var type = p[1].Replace('\\', '/');
+                    var norm = p[1].Replace('\\', '/');
                     cur = new AscSymbol
                     {
-                        Type = type[(type.LastIndexOf('/') + 1)..].ToLowerInvariant(),
+                        RawType = p[1],
+                        Type = norm[(norm.LastIndexOf('/') + 1)..].ToLowerInvariant(),
                         X = I(p[2]), Y = I(p[3]), Rot = p.Length > 4 ? p[4].ToUpperInvariant() : "R0",
                     };
                     s.Symbols.Add(cur);
@@ -54,16 +81,49 @@ public sealed class AscSchematic
                     int idx = line.IndexOf(p[1], StringComparison.Ordinal) + p[1].Length;
                     cur.Attrs[p[1]] = idx < line.Length ? line[idx..].Trim() : "";
                     break;
+                case "WINDOW" when cur != null:
+                    cur.Extra.Add(line.Trim());
+                    break;
                 case "TEXT" when p.Length >= 6:
                     var rest = SplitRest(line, 5);
-                    bool dir = rest.StartsWith('!');
-                    s.Texts.Add(new AscText(I(p[1]), I(p[2]), rest.TrimStart('!', ';').Replace("\\n", "\n"), dir));
+                    s.Texts.Add(new AscText
+                    {
+                        X = I(p[1]), Y = I(p[2]), Align = p[3], Size = I(p[4]) is int sz && sz > 0 ? sz : 2,
+                        Directive = rest.StartsWith('!'),
+                        Text = (rest.StartsWith('!') || rest.StartsWith(';') ? rest[1..] : rest).Replace("\\n", "\n"),
+                    });
+                    cur = null;
+                    break;
+                default:
+                    s.Extra.Add(line.Trim());
+                    cur = null;
                     break;
             }
         }
         s.ComputeNets();
         return s;
     }
+
+    public string Serialize()
+    {
+        var sb = new StringBuilder();
+        sb.Append("Version ").Append(Version).Append('\n');
+        sb.Append(Sheet).Append('\n');
+        foreach (var w in Wires) sb.Append($"WIRE {w.X1} {w.Y1} {w.X2} {w.Y2}\n");
+        foreach (var f in Flags) sb.Append($"FLAG {f.X} {f.Y} {f.Name}\n");
+        foreach (var e in Extra) sb.Append(e).Append('\n');
+        foreach (var s in Symbols)
+        {
+            sb.Append($"SYMBOL {s.RawType} {s.X} {s.Y} {s.Rot}\n");
+            foreach (var e in s.Extra) sb.Append(e).Append('\n');
+            foreach (var kv in s.Attrs) sb.Append($"SYMATTR {kv.Key} {kv.Value}\n");
+        }
+        foreach (var t in Texts)
+            sb.Append($"TEXT {t.X} {t.Y} {t.Align} {t.Size} {(t.Directive ? '!' : ';')}{t.Text.Replace("\r", "").Replace("\n", "\\n")}\n");
+        return sb.ToString().Replace("\n", "\r\n");
+    }
+
+    public AscSchematic Clone() => Parse(Serialize());
 
     static int I(string v) => int.TryParse(v, System.Globalization.NumberStyles.Integer, Si.Inv, out var r) ? r : 0;
 
@@ -78,12 +138,35 @@ public sealed class AscSchematic
         return i < line.Length ? line[(i + 1)..] : "";
     }
 
-    static bool OnSeg(int px, int py, AscWire w) =>
+    public static bool OnSeg(int px, int py, AscWire w) =>
         (long)(w.X2 - w.X1) * (py - w.Y1) == (long)(w.Y2 - w.Y1) * (px - w.X1) &&
         px >= Math.Min(w.X1, w.X2) && px <= Math.Max(w.X1, w.X2) &&
         py >= Math.Min(w.Y1, w.Y2) && py <= Math.Max(w.Y1, w.Y2);
 
-    void ComputeNets()
+    public IEnumerable<(int X, int Y)> Pins(AscSymbol s) =>
+        SymbolShape.Get(s.Type).Pins.Select(p => SymbolShape.Transform(p, s.Rot, s.X, s.Y))
+            .Select(v => ((int)MathF.Round(v.X), (int)MathF.Round(v.Y)));
+
+    /// <summary>Is (x,y) touching anything that conducts: wire, pin or flag (optionally ignoring some wires)?</summary>
+    public bool IsConnectionPoint(int x, int y, ICollection<AscWire>? ignore = null)
+    {
+        foreach (var w in Wires)
+            if ((ignore == null || !ignore.Contains(w)) && OnSeg(x, y, w)) return true;
+        foreach (var s in Symbols)
+            foreach (var p in Pins(s)) if (p.X == x && p.Y == y) return true;
+        foreach (var f in Flags) if (f.X == x && f.Y == y) return true;
+        return false;
+    }
+
+    public string NextInstName(string prefix)
+    {
+        int n = 1;
+        var used = Symbols.Select(s => s.Inst).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        while (used.Contains(prefix + n)) n++;
+        return prefix + n;
+    }
+
+    public void ComputeNets()
     {
         int n = Wires.Count;
         var parent = Enumerable.Range(0, n).ToArray();
@@ -111,10 +194,25 @@ public sealed class SymbolShape
     public Vector2[] Pins = Array.Empty<Vector2>();
     public bool Known = true;
 
+    static readonly Dictionary<string, SymbolShape> Cache = new();
+
     static Vector2 V(float x, float y) => new(x, y);
+
+    /// <summary>Parts the editor can place: type, reference prefix, default value, display name, hotkey.</summary>
+    public static readonly (string Type, string Prefix, string Value, string Name, string Key)[] Placeable =
+    {
+        ("res", "R", "1k", "Resistor", "R"),
+        ("cap", "C", "1u", "Capacitor", "C"),
+        ("ind", "L", "10u", "Inductor", "L"),
+        ("diode", "D", "D", "Diode", "D"),
+        ("voltage", "V", "5", "Voltage source", "V"),
+        ("current", "I", "1m", "Current source", "I"),
+        ("polcap", "C", "100u", "Polarized cap", ""),
+    };
 
     public static SymbolShape Get(string type)
     {
+        if (Cache.TryGetValue(type, out var c)) return c;
         var s = new SymbolShape();
         switch (type)
         {
@@ -174,6 +272,7 @@ public sealed class SymbolShape
                 s.Lines.Add(new[] { V(0, 0), V(64, 0), V(64, 64), V(0, 64), V(0, 0) });
                 break;
         }
+        Cache[type] = s;
         return s;
     }
 
@@ -202,5 +301,17 @@ public sealed class SymbolShape
             _ => p,
         };
         return new Vector2(p.X + x, p.Y + y);
+    }
+
+    public static string Rotate(string rot)
+    {
+        int.TryParse(rot.AsSpan(1), out int ang);
+        return $"{rot[0]}{(ang + 90) % 360}";
+    }
+
+    public static string Mirror(string rot)
+    {
+        int.TryParse(rot.AsSpan(1), out int ang);
+        return $"{(rot[0] == 'M' ? 'R' : 'M')}{(360 - ang) % 360}";
     }
 }

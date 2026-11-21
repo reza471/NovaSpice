@@ -53,6 +53,7 @@ public sealed partial class MainWindow : Window
         Nav.SelectedItem = Nav.MenuItems[0];
 
         var args = Environment.GetCommandLineArgs();
+        if (args.Length > 1 && args[1] == "--selftest-draw") DispatcherQueue.TryEnqueue(SelfTestDraw);
         int page = Array.IndexOf(args, "--page");
         if (args.Length > 2 && args[1] == "--demo") DispatcherQueue.TryEnqueue(() =>
         {
@@ -163,6 +164,14 @@ public sealed partial class MainWindow : Window
 
     void UpdateTitle()
     {
+        if (EditorV.IsUntitled)
+        {
+            FileTitle.Text = "Untitled schematic" + (EditorV.IsDirty ? "  •" : "");
+            FilePath.Text = "not saved yet";
+            FileGlyph.Glyph = "";
+            Title = "Untitled — NovaSpice Studio";
+            return;
+        }
         if (currentFile.Length == 0 && WavesV.Raw == null) { FileTitle.Text = "No file open"; FilePath.Text = ""; return; }
         var f = currentFile.Length > 0 ? currentFile : WavesV.Raw!.Path;
         FileTitle.Text = Path.GetFileName(f) + (EditorV.IsDirty ? "  •" : "");
@@ -253,20 +262,72 @@ public sealed partial class MainWindow : Window
         catch (Exception ex) { Notify($"Demo failed: {ex.Message}", InfoBarSeverity.Error); }
     }
 
-    void Save()
+    public void NewSchematic()
     {
-        if (EditorV.FilePath.Length == 0) { Notify("Nothing to save.", InfoBarSeverity.Informational); return; }
-        try { EditorV.Save(); Notify($"Saved {Path.GetFileName(EditorV.FilePath)}", InfoBarSeverity.Success); }
-        catch (Exception ex) { Notify($"Save failed: {ex.Message}", InfoBarSeverity.Error); }
+        EditorV.NewSchematic();
+        currentFile = "";
+        ClearMeasurements();
+        Navigate("editor");
+        UpdateTitle();
+        Notify("New schematic — press R, C, L, V, G to place parts, W to draw wires, T for .tran/.ac.", InfoBarSeverity.Informational);
+    }
+
+    /// <summary>Draws an RC low-pass through the editor's own click handlers and saves it (developer self-test).</summary>
+    void SelfTestDraw()
+    {
+        NewSchematic();
+        var s = EditorV.Canvas;
+        s.BeginPlace("voltage"); s.SimulateClick(64, 112);
+        s.BeginPlace("res"); s.RotateSelection(); s.SimulateClick(224, 112);
+        s.BeginPlace("cap"); s.SimulateClick(272, 112);
+        s.SetTool(Controls.SchTool.Wire);
+        s.SimulateClick(64, 112); s.SimulateClick(144, 112);   // ends on R1 pin
+        s.SimulateClick(224, 112); s.SimulateClick(352, 112);  // passes the C1 pin, open end
+        s.SetTool(Controls.SchTool.Ground);
+        s.SimulateClick(64, 192); s.SimulateClick(272, 176);
+        s.BeginLabel("out"); s.SimulateClick(352, 112);
+        s.SetTool(Controls.SchTool.Select);
+        s.SimulateClick(176, 64);                                // select R1 (body)
+        s.Fit();
+        var path = Path.Combine(Demo.DemoDir, "selftest.asc");
+        Directory.CreateDirectory(Demo.DemoDir);
+        EditorV.SaveAs(path);
+        currentFile = path;
         UpdateTitle();
     }
+
+    async Task<bool> SaveAsync()
+    {
+        if (!EditorV.HasDocument) { Notify("Nothing to save.", InfoBarSeverity.Informational); return false; }
+        try
+        {
+            if (EditorV.IsUntitled)
+            {
+                var p = await Views.Pickers.SaveAsync("circuit", "LTspice schematic", ".asc");
+                if (p == null) return false;
+                EditorV.SaveAs(p);
+                currentFile = p;
+                Settings.AddRecent(p);
+            }
+            else EditorV.Save();
+            Notify($"Saved {Path.GetFileName(EditorV.FilePath)}", InfoBarSeverity.Success);
+            return true;
+        }
+        catch (Exception ex) { Notify($"Save failed: {ex.Message}", InfoBarSeverity.Error); return false; }
+        finally { UpdateTitle(); }
+    }
+
+    void Save() => _ = SaveAsync();
 
     // ---------------- simulation ----------------
     async Task RunAsync()
     {
         if (runCts != null) { runCts.Cancel(); return; }
-        if (currentFile.Length == 0) { Notify("Open a circuit (.asc or netlist) first.", InfoBarSeverity.Warning); return; }
-        if (EditorV.IsDirty) Save();
+        if (currentFile.Length == 0 && !EditorV.IsUntitled) { Notify("Open or draw a circuit first.", InfoBarSeverity.Warning); return; }
+        if (EditorV.IsDirty || EditorV.IsUntitled)
+        {
+            if (!await SaveAsync()) return;
+        }
         var exe = Ltspice.Find(Settings.LtspicePath);
         var rawPath = Path.ChangeExtension(currentFile, ".raw");
         if (exe.Length == 0)
@@ -336,6 +397,7 @@ public sealed partial class MainWindow : Window
     void BuildCommands()
     {
         commands.Clear();
+        commands.Add(("New schematic  (Ctrl+N)", NewSchematic));
         commands.Add(("Run simulation  (F5)", () => _ = RunAsync()));
         commands.Add(("Open file…  (Ctrl+O)", () => _ = OpenDialogAsync(false)));
         commands.Add(("Open waveform (.raw)…", () => _ = OpenDialogAsync(true)));
@@ -421,6 +483,7 @@ public sealed partial class MainWindow : Window
         RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
         Add(VirtualKey.K, VirtualKeyModifiers.Control, () => Palette.Focus(FocusState.Keyboard));
         Add(VirtualKey.F5, VirtualKeyModifiers.None, () => _ = RunAsync());
+        Add(VirtualKey.N, VirtualKeyModifiers.Control, NewSchematic);
         Add(VirtualKey.O, VirtualKeyModifiers.Control, () => _ = OpenDialogAsync(false));
         Add(VirtualKey.S, VirtualKeyModifiers.Control, Save);
         Add(VirtualKey.Number1, VirtualKeyModifiers.Control, () => Navigate("home"));

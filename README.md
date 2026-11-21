@@ -16,7 +16,10 @@ day-to-day experience around it: opening circuits, running, and above all readin
 - **.step support**: each step is drawn in a related colour and labelled from the `.log` file (`C = 10n`).
 - **Expressions**: `V(out)*I(L1)`, `V(a,b)`, `db()`, `ph()`, `deriv()`, `integ()`, SPICE suffixes (`1k`, `4.7u`).
 - **FFT**: Hann-windowed spectrum of any signal or of the A–B window, with fundamental, DC and THD.
-- **Schematic preview** of `.asc` files; double-click a wire, net label or part to plot its voltage or current.
+- **Schematic editor** that reads and writes LTspice `.asc` files: place R, C, L, diodes, sources, grounds, net labels and
+  directives with LTspice's hotkeys (`R C L D V I G`, `W` wire, `N` label, `T` text); wires bend at right angles and are split
+  at pins; dragging parts keeps their wires attached; rotate/mirror (`Ctrl+R`/`Ctrl+E`), copy/paste, undo/redo, rubber-band
+  select, right-click menu, unconnected-pin markers, and a source view that stays in sync. Double-click a wire to plot it.
 - **Measurements**: `.meas` results (simple and stepped tables) with errors and warnings from the log.
 - Export plots to PNG (2×) and data to CSV.
 - Reads binary and ASCII `.raw` files, real and complex data, `double` and `fastaccess` layouts, UTF-16 and ASCII headers.
