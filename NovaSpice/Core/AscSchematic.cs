@@ -186,11 +186,14 @@ public sealed class AscSchematic
     }
 }
 
-/// <summary>Geometry of the common built-in LTspice symbols (local coordinates, same pins as LTspice).</summary>
+/// <summary>
+/// Symbol geometry in LTspice local coordinates. Taken from the installed LTspice library when available,
+/// otherwise from built-in shapes whose pin positions match LTspice's standard symbols.
+/// </summary>
 public sealed class SymbolShape
 {
     public List<Vector2[]> Lines = new();
-    public List<(Vector2 C, float R)> Circles = new();
+    public List<(Vector2 C, float Rx, float Ry)> Ellipses = new();
     public Vector2[] Pins = Array.Empty<Vector2>();
     public bool Known = true;
 
@@ -198,21 +201,44 @@ public sealed class SymbolShape
 
     static Vector2 V(float x, float y) => new(x, y);
 
-    /// <summary>Parts the editor can place: type, reference prefix, default value, display name, hotkey.</summary>
-    public static readonly (string Type, string Prefix, string Value, string Name, string Key)[] Placeable =
+    public sealed record Part(string Type, string RawType, string Prefix, string Value, string Name, string Key);
+
+    /// <summary>Parts on the editor toolbar.</summary>
+    public static readonly Part[] Placeable =
     {
-        ("res", "R", "1k", "Resistor", "R"),
-        ("cap", "C", "1u", "Capacitor", "C"),
-        ("ind", "L", "10u", "Inductor", "L"),
-        ("diode", "D", "D", "Diode", "D"),
-        ("voltage", "V", "5", "Voltage source", "V"),
-        ("current", "I", "1m", "Current source", "I"),
-        ("polcap", "C", "100u", "Polarized cap", ""),
+        new("res", "res", "R", "1k", "Resistor", "R"),
+        new("cap", "cap", "C", "1u", "Capacitor", "C"),
+        new("ind", "ind", "L", "10u", "Inductor", "L"),
+        new("diode", "diode", "D", "D", "Diode", "D"),
+        new("voltage", "voltage", "V", "5", "Voltage source", "V"),
+        new("current", "current", "I", "1m", "Current source", "I"),
+        new("polcap", "polcap", "C", "100u", "Polarized cap", ""),
+        new("npn", "npn", "Q", "2N3904", "NPN transistor", "Q"),
+        new("pnp", "pnp", "Q", "2N3906", "PNP transistor", "Shift+Q"),
+        new("nmos", "nmos", "M", "2N7002", "N-MOSFET", "M"),
+        new("pmos", "pmos", "M", "BSS84", "P-MOSFET", "Shift+M"),
+        new("opamp2", @"Opamps\opamp2", "U", OpAmpModel, "Op-amp", "U"),
     };
+
+    public static Part? PartFor(string type) => Placeable.FirstOrDefault(p => p.Type == type);
+
+    /// <summary>Behavioural op-amp used with the opamp2 symbol (pins In+ In- V+ V- OUT); output clamps to the rails.</summary>
+    public const string OpAmpModel = "NovaOpAmp";
+    public const string OpAmpSubckt =
+        ".subckt NovaOpAmp inp inn vp vn out\nB1 out 0 V=limit(1e5*V(inp,inn), V(vn), V(vp))\n.ends NovaOpAmp";
+
+    public static void ClearCache() => Cache.Clear();
 
     public static SymbolShape Get(string type)
     {
         if (Cache.TryGetValue(type, out var c)) return c;
+        var s = SymbolLibrary.TryLoad(type) ?? BuiltIn(type);
+        Cache[type] = s;
+        return s;
+    }
+
+    static SymbolShape BuiltIn(string type)
+    {
         var s = new SymbolShape();
         switch (type)
         {
@@ -230,7 +256,7 @@ public sealed class SymbolShape
             case "polcap":
                 s.Lines.Add(new[] { V(16, 0), V(16, 26) });
                 s.Lines.Add(new[] { V(0, 26), V(32, 26) });
-                s.Lines.Add(Arc(16, 52, 18, -125, -55));
+                s.Lines.Add(ArcPts(16, 52, 18, -125, -55));
                 s.Lines.Add(new[] { V(16, 37), V(16, 64) });
                 s.Lines.Add(new[] { V(2, 14), V(10, 14) });
                 s.Lines.Add(new[] { V(6, 10), V(6, 18) });
@@ -238,14 +264,14 @@ public sealed class SymbolShape
                 break;
             case "ind": case "ind2":
                 var pts = new List<Vector2> { V(16, 16), V(16, 24) };
-                for (int k = 0; k < 4; k++) pts.AddRange(Arc(16, 32 + k * 16, 8, -90, 90));
+                for (int k = 0; k < 4; k++) pts.AddRange(ArcPts(16, 32 + k * 16, 8, -90, 90));
                 pts.Add(V(16, 96));
                 s.Lines.Add(pts.ToArray());
                 s.Pins = new[] { V(16, 16), V(16, 96) };
                 break;
             case "voltage": case "battery":
                 s.Lines.Add(new[] { V(0, 16), V(0, 24) });
-                s.Circles.Add((V(0, 56), 32));
+                s.Ellipses.Add((V(0, 56), 32, 32));
                 s.Lines.Add(new[] { V(0, 88), V(0, 96) });
                 s.Lines.Add(new[] { V(-7, 42), V(7, 42) });
                 s.Lines.Add(new[] { V(0, 35), V(0, 49) });
@@ -254,7 +280,7 @@ public sealed class SymbolShape
                 break;
             case "current":
                 s.Lines.Add(new[] { V(0, 0), V(0, 16) });
-                s.Circles.Add((V(0, 40), 24));
+                s.Ellipses.Add((V(0, 40), 24, 24));
                 s.Lines.Add(new[] { V(0, 26), V(0, 54) });
                 s.Lines.Add(new[] { V(-6, 46), V(0, 54), V(6, 46) });
                 s.Lines.Add(new[] { V(0, 64), V(0, 80) });
@@ -267,16 +293,51 @@ public sealed class SymbolShape
                 s.Lines.Add(new[] { V(16, 44), V(16, 64) });
                 s.Pins = new[] { V(16, 0), V(16, 64) };
                 break;
+            case "npn": case "pnp":
+                // C (64,0)  B (0,48)  E (64,96)
+                s.Ellipses.Add((V(40, 48), 30, 30));
+                s.Lines.Add(new[] { V(0, 48), V(20, 48) });
+                s.Lines.Add(new[] { V(20, 22), V(20, 74) });
+                s.Lines.Add(new[] { V(20, 36), V(64, 14), V(64, 0) });
+                s.Lines.Add(new[] { V(20, 60), V(64, 82), V(64, 96) });
+                s.Lines.Add(type == "npn"
+                    ? new[] { V(44, 79), V(55, 77), V(48, 68) }      // arrow out of the emitter
+                    : new[] { V(37, 75), V(29, 65), V(41, 64) });    // arrow into the emitter
+                s.Pins = new[] { V(64, 0), V(0, 48), V(64, 96) };
+                break;
+            case "nmos": case "pmos":
+                // D (48,0)  G (0,80)  S (48,96)
+                s.Lines.Add(new[] { V(0, 80), V(16, 80), V(16, 28) });
+                s.Lines.Add(new[] { V(24, 24), V(24, 40) });
+                s.Lines.Add(new[] { V(24, 46), V(24, 58) });
+                s.Lines.Add(new[] { V(24, 64), V(24, 80) });
+                s.Lines.Add(new[] { V(24, 32), V(48, 32), V(48, 0) });
+                s.Lines.Add(new[] { V(24, 72), V(48, 72), V(48, 96) });
+                s.Lines.Add(new[] { V(24, 52), V(48, 52), V(48, 72) });
+                s.Lines.Add(type == "nmos"
+                    ? new[] { V(33, 46), V(25, 52), V(33, 58) }      // arrow pointing into the channel
+                    : new[] { V(36, 46), V(44, 52), V(36, 58) });    // arrow pointing out
+                s.Pins = new[] { V(48, 0), V(0, 80), V(48, 96) };
+                break;
+            case "opamp2":
+                // In+ (-32,80)  In- (-32,48)  V+ (0,32)  V- (0,96)  OUT (32,64)
+                s.Lines.Add(new[] { V(-32, 24), V(32, 64), V(-32, 104), V(-32, 24) });
+                s.Lines.Add(new[] { V(0, 32), V(0, 44) });
+                s.Lines.Add(new[] { V(0, 84), V(0, 96) });
+                s.Lines.Add(new[] { V(-27, 80), V(-17, 80) });
+                s.Lines.Add(new[] { V(-22, 75), V(-22, 85) });
+                s.Lines.Add(new[] { V(-27, 48), V(-17, 48) });
+                s.Pins = new[] { V(-32, 80), V(-32, 48), V(0, 32), V(0, 96), V(32, 64) };
+                break;
             default:
                 s.Known = false;
                 s.Lines.Add(new[] { V(0, 0), V(64, 0), V(64, 64), V(0, 64), V(0, 0) });
                 break;
         }
-        Cache[type] = s;
         return s;
     }
 
-    static Vector2[] Arc(float cx, float cy, float r, float a0, float a1)
+    static Vector2[] ArcPts(float cx, float cy, float r, float a0, float a1)
     {
         var p = new Vector2[13];
         for (int i = 0; i <= 12; i++)
@@ -301,6 +362,12 @@ public sealed class SymbolShape
             _ => p,
         };
         return new Vector2(p.X + x, p.Y + y);
+    }
+
+    public static bool SwapsAxes(string rot)
+    {
+        int.TryParse(rot.AsSpan(1), out int ang);
+        return ang % 180 == 90;
     }
 
     public static string Rotate(string rot)

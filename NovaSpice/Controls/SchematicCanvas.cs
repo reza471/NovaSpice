@@ -39,6 +39,7 @@ public sealed class SchematicCanvas : UserControl
     public event Action<SchTool, string>? ToolChanged;
     public event Action? LabelRequested;
     public event Action? TextRequested;
+    public event Action? LibraryRequested;
 
     // view
     float scale = 1;
@@ -47,6 +48,7 @@ public sealed class SchematicCanvas : UserControl
 
     // tool state
     string placeRot = "R0";
+    string placeRaw = "res", placePrefix = "R", placeValue = "1k";
     string pendingLabel = "out";
     AscText? pendingText;
     (int X, int Y) snapCursor;
@@ -130,7 +132,21 @@ public sealed class SchematicCanvas : UserControl
         cv.Invalidate();
     }
 
-    public void BeginPlace(string type) { placeRot = "R0"; SetTool(SchTool.Place, type); Focus(FocusState.Programmatic); }
+    public void BeginPlace(string type)
+    {
+        var p = SymbolShape.PartFor(type);
+        BeginPlace(type, p?.RawType ?? type, p?.Prefix ?? "X", p?.Value ?? "");
+    }
+
+    /// <summary>Place any symbol, e.g. one picked from the LTspice library.</summary>
+    public void BeginPlace(string type, string rawType, string prefix, string value)
+    {
+        placeRot = "R0"; placeRaw = rawType; placePrefix = prefix; placeValue = value;
+        SetTool(SchTool.Place, type);
+        Focus(FocusState.Programmatic);
+    }
+
+    public string PlaceName => SymbolShape.PartFor(PlaceType)?.Name ?? placeRaw;
     public void BeginLabel(string name) { pendingLabel = name; SetTool(SchTool.Label); Focus(FocusState.Programmatic); }
     public void BeginText(string text, bool directive)
     {
@@ -260,7 +276,7 @@ public sealed class SchematicCanvas : UserControl
     {
         var shape = SymbolShape.Get(sy.Type);
         var pts = shape.Lines.SelectMany(l => l)
-            .Concat(shape.Circles.SelectMany(c => new[] { c.C - new Vector2(c.R), c.C + new Vector2(c.R) }))
+            .Concat(shape.Ellipses.SelectMany(c => new[] { c.C - new Vector2(c.Rx, c.Ry), c.C + new Vector2(c.Rx, c.Ry) }))
             .Select(p => SymbolShape.Transform(p, sy.Rot, sy.X, sy.Y)).ToList();
         return (new Vector2(pts.Min(p => p.X), pts.Min(p => p.Y)), new Vector2(pts.Max(p => p.X), pts.Max(p => p.Y)));
     }
@@ -467,8 +483,9 @@ public sealed class SchematicCanvas : UserControl
             using var g = CanvasGeometry.CreatePath(pb);
             ds.DrawGeometry(g, col, width, ghost ? dash : round);
         }
-        foreach (var (c, r) in shape.Circles)
-            ds.DrawCircle(S(SymbolShape.Transform(c, sy.Rot, sy.X, sy.Y)), r * scale, col, width);
+        bool swap = SymbolShape.SwapsAxes(sy.Rot);
+        foreach (var (c, rx, ry) in shape.Ellipses)
+            ds.DrawEllipse(S(SymbolShape.Transform(c, sy.Rot, sy.X, sy.Y)), (swap ? ry : rx) * scale, (swap ? rx : ry) * scale, col, width);
         if (ghost) return;
         var (min, max) = Bounds(sy);
         var center = (min + max) / 2;
@@ -505,7 +522,7 @@ public sealed class SchematicCanvas : UserControl
         string hint = Tool switch
         {
             SchTool.Wire => wireStart == null ? "Wire · click to start" : "Wire · click to bend · ends on a connection · double-click / right-click to finish · Esc",
-            SchTool.Place => $"Place {SymbolShape.Placeable.FirstOrDefault(p => p.Type == PlaceType).Name ?? PlaceType} · click to drop · Ctrl+R rotate · Ctrl+E mirror · Esc",
+            SchTool.Place => $"Place {PlaceName} · click to drop · Ctrl+R rotate · Ctrl+E mirror · Esc",
             SchTool.Ground => "Ground · click to place · Esc",
             SchTool.Label => $"Net label \"{pendingLabel}\" · click on a wire or pin · Esc",
             SchTool.Text => "Click to place the text",
@@ -585,12 +602,16 @@ public sealed class SchematicCanvas : UserControl
                 break;
             case SchTool.Place:
                 PushUndo();
-                var info = SymbolShape.Placeable.FirstOrDefault(p => p.Type == PlaceType);
                 var (ox, oy) = PlaceOrigin(PlaceType, placeRot, snap);
-                var sym = new AscSymbol { RawType = PlaceType, Type = PlaceType, X = ox, Y = oy, Rot = placeRot };
-                sym.Inst = doc.NextInstName(info.Prefix ?? "X");
-                sym.Value = info.Value ?? "";
+                var sym = new AscSymbol { RawType = placeRaw, Type = PlaceType, X = ox, Y = oy, Rot = placeRot };
+                sym.Inst = doc.NextInstName(placePrefix);
+                if (placeValue.Length > 0) sym.Value = placeValue;
                 doc.Symbols.Add(sym);
+                if (placeValue == SymbolShape.OpAmpModel && !doc.Texts.Any(t => t.Text.Contains(".subckt " + SymbolShape.OpAmpModel, StringComparison.OrdinalIgnoreCase)))
+                {
+                    var bottom = AllPoints().Select(p => p.Y).DefaultIfEmpty(0).Max();
+                    doc.Texts.Add(new AscText { X = ox - 32, Y = Snap(bottom + 48), Text = SymbolShape.OpAmpSubckt, Directive = true });
+                }
                 Commit();
                 break;
             case SchTool.Ground:
@@ -849,6 +870,10 @@ public sealed class SchematicCanvas : UserControl
             case VirtualKey.V when ctrl: Paste(); break;
             case VirtualKey.X when ctrl: Copy(); DeleteSelection(); break;
             case VirtualKey.R when !ctrl: BeginPlace("res"); break;
+            case VirtualKey.Q when !ctrl: BeginPlace(shift ? "pnp" : "npn"); break;
+            case VirtualKey.M when !ctrl: BeginPlace(shift ? "pmos" : "nmos"); break;
+            case VirtualKey.U when !ctrl: BeginPlace("opamp2"); break;
+            case VirtualKey.P when !ctrl: LibraryRequested?.Invoke(); break;
             case VirtualKey.C when !ctrl: BeginPlace("cap"); break;
             case VirtualKey.L when !ctrl: BeginPlace("ind"); break;
             case VirtualKey.D when !ctrl: BeginPlace("diode"); break;

@@ -40,7 +40,8 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal" Spacing="4">
+            <ScrollViewer HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="ToolStrip" Orientation="Horizontal" Spacing="4">
                 <ToggleButton x:Name="TSelect" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="select" ToolTipService.ToolTip="Select / move (Esc)">
                     <FontIcon Glyph="&#xE8B0;" FontSize="16"/>
                 </ToggleButton>
@@ -66,6 +67,25 @@
                 <ToggleButton x:Name="TCurr" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="current" ToolTipService.ToolTip="Current source (I)">
                     <Path Style="{StaticResource PartIcon}" Data="M10,1 A9,9 0 1 1 9.99,1 M10,5 L10,15 M7,12 L10,15 L13,12"/>
                 </ToggleButton>
+                <ToggleButton x:Name="TNpn" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="npn" ToolTipService.ToolTip="NPN transistor (Q)">
+                    <Path Style="{StaticResource PartIcon}" Data="M1,10 L7,10 M7,4 L7,16 M7,8 L15,3 L15,0 M7,12 L15,17 L15,20 M11,17 L15,17 L13,13"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TPnp" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="pnp" ToolTipService.ToolTip="PNP transistor (Shift+Q)">
+                    <Path Style="{StaticResource PartIcon}" Data="M1,10 L7,10 M7,4 L7,16 M7,8 L15,3 L15,0 M7,12 L15,17 L15,20 M8,16 L7,12 L11,12"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TNmos" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="nmos" ToolTipService.ToolTip="N-MOSFET (M)">
+                    <Path Style="{StaticResource PartIcon}" Data="M0,15 L5,15 L5,5 M8,4 L8,16 M8,6 L16,6 L16,0 M8,14 L16,14 L16,20 M8,10 L16,10 M11,8 L8,10 L11,12"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TPmos" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="pmos" ToolTipService.ToolTip="P-MOSFET (Shift+M)">
+                    <Path Style="{StaticResource PartIcon}" Data="M0,15 L5,15 L5,5 M8,4 L8,16 M8,6 L16,6 L16,0 M8,14 L16,14 L16,20 M8,10 L16,10 M13,8 L16,10 L13,12"/>
+                </ToggleButton>
+                <ToggleButton x:Name="TOpamp" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="opamp2" ToolTipService.ToolTip="Op-amp (U)">
+                    <Path Style="{StaticResource PartIcon}" Data="M3,2 L18,10 L3,18 Z M5,7 L8,7 M5,13 L8,13 M6.5,11.5 L6.5,14.5"/>
+                </ToggleButton>
+                <Button Style="{StaticResource ToolButton}" Click="Library_Click" ToolTipService.ToolTip="All parts from your LTspice library (P)">
+                    <FontIcon Glyph="&#xE8F1;" FontSize="16"/>
+                </Button>
+                <Border Width="1" Margin="4,6" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
                 <ToggleButton x:Name="TGround" Style="{StaticResource ToolToggle}" Click="Tool_Click" Tag="ground" ToolTipService.ToolTip="Ground (G)">
                     <Path Style="{StaticResource PartIcon}" Data="M10,2 L10,9 M3,9 L17,9 L10,17 Z"/>
                 </ToggleButton>
@@ -84,6 +104,7 @@
                 <Button Style="{StaticResource ToolButton}" Click="Redo_Click" ToolTipService.ToolTip="Redo (Ctrl+Y)"><FontIcon Glyph="&#xE7A6;" FontSize="16"/></Button>
                 <Button Style="{StaticResource ToolButton}" Click="Fit_Click" ToolTipService.ToolTip="Fit to window (F)"><FontIcon Glyph="&#xE9A6;" FontSize="16"/></Button>
             </StackPanel>
+            </ScrollViewer>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
                 <TextBlock x:Name="Dirty" Text="● modified" VerticalAlignment="Center" FontSize="12"
                            Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="Collapsed"/>

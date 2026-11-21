@@ -34,6 +34,7 @@ public sealed partial class EditorView : UserControl
         Sch.EditRequested += async o => await EditAsync(o);
         Sch.LabelRequested += async () => await AskLabelAsync();
         Sch.TextRequested += async () => await AskTextAsync();
+        Sch.LibraryRequested += async () => await PickFromLibraryAsync();
         SyncToolButtons(SchTool.Select, "");
     }
 
@@ -91,7 +92,7 @@ public sealed partial class EditorView : UserControl
 
     void SetToolbarEnabled(bool on)
     {
-        foreach (var child in ((StackPanel)((Grid)Toolbar).Children[0]).Children)
+        foreach (var child in ToolStrip.Children)
             if (child is Control c) c.IsEnabled = on;
     }
 
@@ -157,7 +158,7 @@ public sealed partial class EditorView : UserControl
             SchTool.Text => "text",
             _ => "select",
         };
-        foreach (var tb in new[] { TSelect, TWire, TRes, TCap, TInd, TDiode, TVolt, TCurr, TGround, TLabel, TText })
+        foreach (var tb in new[] { TSelect, TWire, TRes, TCap, TInd, TDiode, TVolt, TCurr, TNpn, TPnp, TNmos, TPmos, TOpamp, TGround, TLabel, TText })
             tb.IsChecked = (string)tb.Tag == key;
     }
 
@@ -184,6 +185,47 @@ public sealed partial class EditorView : UserControl
     void Redo_Click(object sender, RoutedEventArgs e) { Sch.Redo(); Sch.Focus(FocusState.Programmatic); }
     void Fit_Click(object sender, RoutedEventArgs e) { Sch.Fit(); Sch.Focus(FocusState.Programmatic); }
     void New_Click(object sender, RoutedEventArgs e) => App.Main!.NewSchematic();
+    async void Library_Click(object sender, RoutedEventArgs e) => await PickFromLibraryAsync();
+
+    async Task PickFromLibraryAsync()
+    {
+        if (!SymbolLibrary.Available)
+        {
+            var msg = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap, MaxWidth = 460,
+                Text = "The LTspice symbol library was not found. Install LTspice (it creates its lib/sym folder in your profile) and every part in it " +
+                       "— op-amps, regulators, MOSFETs, logic, transformers — becomes available here with its exact pins.",
+            };
+            await ShowDialogAsync("LTspice library", msg, "OK");
+            return;
+        }
+        var all = SymbolLibrary.Index();
+        var search = new TextBox { PlaceholderText = $"Search {all.Count:N0} parts — e.g. LT1001, npn, 7805, opamp" };
+        var list = new ListView { Height = 380, SelectionMode = ListViewSelectionMode.Single };
+        void Filter()
+        {
+            var q = search.Text.Trim();
+            list.ItemsSource = all.Where(e => q.Length == 0 || e.RelPath.Contains(q, StringComparison.OrdinalIgnoreCase))
+                .Take(400).Select(e => e.RelPath.Replace(".asy", "")).ToList();
+        }
+        search.TextChanged += (_, _) => Filter();
+        Filter();
+        var panel = new StackPanel { Spacing = 10, Width = 520 };
+        panel.Children.Add(search);
+        panel.Children.Add(list);
+        panel.Children.Add(new TextBlock { Text = SymbolLibrary.Root, FontSize = 11, Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"] });
+        if (!await ShowDialogAsync("Place a part from the LTspice library", panel, "Place")) return;
+        if (list.SelectedItem is not string rel) return;
+        var entry = all.First(e => e.RelPath.Replace(".asy", "") == rel);
+        var attrs = SymbolLibrary.Attributes(entry);
+        var prefix = attrs.GetValueOrDefault("Prefix", "X");
+        var inst = prefix.Equals("X", StringComparison.OrdinalIgnoreCase) ? "U" : prefix.ToUpperInvariant()[..1];
+        var value = attrs.GetValueOrDefault("Value", "");
+        if (value.Length == 0) value = attrs.GetValueOrDefault("SpiceModel", "");
+        Sch.BeginPlace(entry.Type, entry.RawType, inst, value);
+        SyncToolButtons(Sch.Tool, Sch.PlaceType);
+    }
 
     // ---------------- dialogs ----------------
     static readonly Dictionary<string, string[]> Presets = new()
@@ -195,6 +237,11 @@ public sealed partial class EditorView : UserControl
         ["diode"] = new[] { "D", "1N4148", "1N5819", "1N4007" },
         ["voltage"] = new[] { "5", "12", "AC 1", "PULSE(0 5 0 1n 1n 0.5u 1u)", "SINE(0 1 1k)", "PWL(0 0 1m 5)" },
         ["current"] = new[] { "1m", "PULSE(0 1m 0 1n 1n 0.5m 1m)", "SINE(0 1m 1k)" },
+        ["npn"] = new[] { "2N3904", "2N2222", "BC547B", "2N4401", "2N3055" },
+        ["pnp"] = new[] { "2N3906", "2N2907", "BC557B", "2N4403" },
+        ["nmos"] = new[] { "2N7002", "BSS123", "IRF530", "Si4410DY" },
+        ["pmos"] = new[] { "BSS84", "FDS4435", "IRF9530", "Si4425DY" },
+        ["opamp2"] = new[] { SymbolShape.OpAmpModel },
     };
 
     async Task<bool> ShowDialogAsync(string title, UIElement content, string primary = "OK")
@@ -242,7 +289,7 @@ public sealed partial class EditorView : UserControl
                 var extra = Field("Extra SPICE parameters (optional, e.g. Rser=10m)", s.Attrs.GetValueOrDefault("SpiceLine", ""));
                 var panel = new StackPanel { Spacing = 12 };
                 panel.Children.Add(name); panel.Children.Add(value); panel.Children.Add(extra);
-                if (!await ShowDialogAsync($"{SymbolShape.Placeable.FirstOrDefault(p => p.Type == s.Type).Name ?? s.Type} properties", panel)) return;
+                if (!await ShowDialogAsync($"{SymbolShape.PartFor(s.Type)?.Name ?? s.RawType} properties", panel)) return;
                 Sch.PushUndo();
                 if (name.Text.Trim().Length > 0) s.Inst = name.Text.Trim();
                 s.Value = (value.Text ?? value.SelectedItem as string ?? s.Value).Trim();

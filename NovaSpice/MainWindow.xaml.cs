@@ -54,6 +54,7 @@ public sealed partial class MainWindow : Window
 
         var args = Environment.GetCommandLineArgs();
         if (args.Length > 1 && args[1] == "--selftest-draw") DispatcherQueue.TryEnqueue(SelfTestDraw);
+        if (args.Length > 1 && args[1] == "--selftest-parts") DispatcherQueue.TryEnqueue(SelfTestParts);
         int page = Array.IndexOf(args, "--page");
         if (args.Length > 2 && args[1] == "--demo") DispatcherQueue.TryEnqueue(() =>
         {
@@ -290,6 +291,31 @@ public sealed partial class MainWindow : Window
         s.SimulateClick(176, 64);                                // select R1 (body)
         s.Fit();
         var path = Path.Combine(Demo.DemoDir, "selftest.asc");
+        Directory.CreateDirectory(Demo.DemoDir);
+        EditorV.SaveAs(path);
+        currentFile = path;
+        UpdateTitle();
+    }
+
+    /// <summary>Places every semiconductor part plus a wired op-amp (developer self-test).</summary>
+    void SelfTestParts()
+    {
+        NewSchematic();
+        var s = EditorV.Canvas;
+        s.BeginPlace("npn"); s.SimulateClick(160, 64);
+        s.BeginPlace("pnp"); s.SimulateClick(336, 64);
+        s.BeginPlace("nmos"); s.SimulateClick(512, 64);
+        s.BeginPlace("pmos"); s.SimulateClick(688, 64);
+        s.BeginPlace("opamp2"); s.SimulateClick(160, 320);           // In+ pin at the click
+        s.SetTool(Controls.SchTool.Wire);
+        s.SimulateClick(160, 288); s.SimulateClick(96, 288); s.SimulateClick(96, 320); s.SimulateClick(160, 320); // ties In- to In+ area via wires
+        s.SetTool(Controls.SchTool.Ground);
+        s.SimulateClick(192, 336);                                    // V- pin
+        s.BeginLabel("vcc"); s.SimulateClick(192, 272);               // V+ pin
+        s.BeginLabel("out"); s.SimulateClick(224, 304);               // OUT pin
+        s.SetTool(Controls.SchTool.Select);
+        s.Fit();
+        var path = Path.Combine(Demo.DemoDir, "selftest_parts.asc");
         Directory.CreateDirectory(Demo.DemoDir);
         EditorV.SaveAs(path);
         currentFile = path;

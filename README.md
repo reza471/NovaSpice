@@ -17,7 +17,9 @@ day-to-day experience around it: opening circuits, running, and above all readin
 - **Expressions**: `V(out)*I(L1)`, `V(a,b)`, `db()`, `ph()`, `deriv()`, `integ()`, SPICE suffixes (`1k`, `4.7u`).
 - **FFT**: Hann-windowed spectrum of any signal or of the A–B window, with fundamental, DC and THD.
 - **Schematic editor** that reads and writes LTspice `.asc` files: place R, C, L, diodes, sources, grounds, net labels and
-  directives with LTspice's hotkeys (`R C L D V I G`, `W` wire, `N` label, `T` text); wires bend at right angles and are split
+  directives with LTspice's hotkeys (`R C L D V I G`, `W` wire, `N` label, `T` text); NPN/PNP (`Q`/`Shift+Q`),
+  N/P-MOSFETs (`M`/`Shift+M`) and op-amps (`U`, with a built-in rail-clamped model); every part of the installed LTspice
+  library (`P`), drawn from its own `.asy` file with exact pins; wires bend at right angles and are split
   at pins; dragging parts keeps their wires attached; rotate/mirror (`Ctrl+R`/`Ctrl+E`), copy/paste, undo/redo, rubber-band
   select, right-click menu, unconnected-pin markers, and a source view that stays in sync. Double-click a wire to plot it.
 - **Measurements**: `.meas` results (simple and stepped tables) with errors and warnings from the log.
