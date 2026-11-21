@@ -1,0 +1,176 @@
+<UserControl
+    x:Class="NovaSpice.Views.WaveformView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:NovaSpice.Views"
+    xmlns:c="using:NovaSpice.Controls">
+
+    <UserControl.Resources>
+        <Style x:Key="ToolBtn" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Padding="12,4,16,12" ColumnSpacing="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="290"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Signals panel -->
+        <Grid RowSpacing="10" Padding="14" CornerRadius="12"
+              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid>
+                <TextBlock Text="Signals" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center"/>
+                <TextBlock x:Name="SignalCount" HorizontalAlignment="Right" VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12"/>
+            </Grid>
+            <TextBox x:Name="Search" Grid.Row="1" PlaceholderText="Filter signals…" TextChanged="Search_TextChanged"/>
+            <ListView x:Name="SignalList" Grid.Row="2" SelectionMode="Single" Margin="-8,0"
+                      DoubleTapped="SignalList_DoubleTapped">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:SignalItem">
+                        <Grid ColumnSpacing="8" Padding="0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox IsChecked="{x:Bind IsPlotted, Mode=OneWay}" Tag="{x:Bind Name}" Click="Signal_Click"
+                                      MinWidth="0" Padding="0" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Width="12" Height="12" CornerRadius="4" Background="{x:Bind Brush, Mode=OneWay}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="{x:Bind Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                       FontFamily="Cascadia Mono, Consolas" FontSize="13"/>
+                            <Border Grid.Column="3" CornerRadius="6" Padding="6,1" VerticalAlignment="Center"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                <TextBlock Text="{x:Bind KindTag}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </Border>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+            <TextBox x:Name="ExprBox" Grid.Row="3" PlaceholderText="ƒx  V(out)*I(L1)  ⏎"
+                     FontFamily="Cascadia Mono, Consolas" KeyDown="ExprBox_KeyDown"/>
+            <TextBlock x:Name="MetaText" Grid.Row="4" TextWrapping="Wrap" FontSize="12"
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+        </Grid>
+
+        <!-- Plot area -->
+        <Grid Grid.Column="1" RowSpacing="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="200"/>
+            </Grid.RowDefinitions>
+
+            <Grid ColumnSpacing="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Style="{StaticResource ToolBtn}" Click="AddPane_Click" ToolTipService.ToolTip="Add a plot pane below">
+                        <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13"/><TextBlock Text="Pane"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource ToolBtn}" Click="RemovePane_Click" ToolTipService.ToolTip="Remove the active pane">
+                        <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE738;" FontSize="13"/><TextBlock Text="Pane"/></StackPanel>
+                    </Button>
+                    <ToggleButton x:Name="CursorToggle" Padding="10,5" CornerRadius="8" Click="Cursors_Click" ToolTipService.ToolTip="A/B cursors (C)">
+                        <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE8B0;" FontSize="13"/><TextBlock Text="Cursors"/></StackPanel>
+                    </ToggleButton>
+                    <Button Style="{StaticResource ToolBtn}" Click="Fit_Click" ToolTipService.ToolTip="Fit all (F, or double-click the plot)">
+                        <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE9A6;" FontSize="13"/><TextBlock Text="Fit"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource ToolBtn}" Click="Fft_Click" ToolTipService.ToolTip="Spectrum + THD of the selected signal">
+                        <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE9D9;" FontSize="13"/><TextBlock Text="FFT"/></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource ToolBtn}" ToolTipService.ToolTip="Export">
+                        <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xEDE1;" FontSize="13"/><TextBlock Text="Export"/></StackPanel>
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Text="Image (PNG, 2×)" Click="Png_Click"><MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;"/></MenuFlyoutItem.Icon></MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Data (CSV)" Click="Csv_Click"><MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;"/></MenuFlyoutItem.Icon></MenuFlyoutItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                </StackPanel>
+                <TextBlock x:Name="CursorInfo" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
+                           FontFamily="Cascadia Mono, Consolas" FontSize="12" TextTrimming="CharacterEllipsis"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </Grid>
+
+            <Border Grid.Row="1" CornerRadius="12" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <c:WaveformCanvas x:Name="Plot"/>
+            </Border>
+
+            <!-- Readout table -->
+            <Grid Grid.Row="2" CornerRadius="12" Padding="12,8"
+                  Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Grid Padding="12,0,12,6" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="160"/>
+                        <ColumnDefinition Width="92"/><ColumnDefinition Width="92"/><ColumnDefinition Width="92"/>
+                        <ColumnDefinition Width="92"/><ColumnDefinition Width="92"/><ColumnDefinition Width="92"/>
+                        <ColumnDefinition Width="92"/><ColumnDefinition Width="92"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="SIGNAL" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock Grid.Column="1" Text="@ A" HorizontalAlignment="Right" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock Grid.Column="2" Text="@ B" HorizontalAlignment="Right" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock Grid.Column="3" Text="B − A" HorizontalAlignment="Right" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock Grid.Column="4" Text="MIN" HorizontalAlignment="Right" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock Grid.Column="5" Text="MAX" HorizontalAlignment="Right" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock Grid.Column="6" Text="AVG" HorizontalAlignment="Right" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock Grid.Column="7" Text="RMS" HorizontalAlignment="Right" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock Grid.Column="8" Text="PK-PK" HorizontalAlignment="Right" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                </Grid>
+                <ListView x:Name="ReadoutList" Grid.Row="1" SelectionMode="None" Margin="-4,0">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                            <Setter Property="MinHeight" Value="28"/>
+                            <Setter Property="Padding" Value="8,0"/>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="local:ReadoutRow">
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" MinWidth="160"/>
+                                    <ColumnDefinition Width="92"/><ColumnDefinition Width="92"/><ColumnDefinition Width="92"/>
+                                    <ColumnDefinition Width="92"/><ColumnDefinition Width="92"/><ColumnDefinition Width="92"/>
+                                    <ColumnDefinition Width="92"/><ColumnDefinition Width="92"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Width="10" Height="10" CornerRadius="3" Background="{x:Bind Brush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{x:Bind Name}" FontFamily="Cascadia Mono, Consolas" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{x:Bind A}" HorizontalAlignment="Right" FontFamily="Cascadia Mono, Consolas" FontSize="12"/>
+                                <TextBlock Grid.Column="2" Text="{x:Bind B}" HorizontalAlignment="Right" FontFamily="Cascadia Mono, Consolas" FontSize="12"/>
+                                <TextBlock Grid.Column="3" Text="{x:Bind Delta}" HorizontalAlignment="Right" FontFamily="Cascadia Mono, Consolas" FontSize="12"/>
+                                <TextBlock Grid.Column="4" Text="{x:Bind Min}" HorizontalAlignment="Right" FontFamily="Cascadia Mono, Consolas" FontSize="12"/>
+                                <TextBlock Grid.Column="5" Text="{x:Bind Max}" HorizontalAlignment="Right" FontFamily="Cascadia Mono, Consolas" FontSize="12"/>
+                                <TextBlock Grid.Column="6" Text="{x:Bind Avg}" HorizontalAlignment="Right" FontFamily="Cascadia Mono, Consolas" FontSize="12"/>
+                                <TextBlock Grid.Column="7" Text="{x:Bind Rms}" HorizontalAlignment="Right" FontFamily="Cascadia Mono, Consolas" FontSize="12"/>
+                                <TextBlock Grid.Column="8" Text="{x:Bind PkPk}" HorizontalAlignment="Right" FontFamily="Cascadia Mono, Consolas" FontSize="12"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

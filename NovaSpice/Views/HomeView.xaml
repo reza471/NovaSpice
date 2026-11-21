@@ -1,0 +1,101 @@
+<UserControl
+    x:Class="NovaSpice.Views.HomeView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <Style x:Key="CardButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="VerticalContentAlignment" Value="Top"/>
+            <Setter Property="Padding" Value="22,20"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="MinHeight" Value="168"/>
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer>
+        <StackPanel Padding="48,28,48,40" Spacing="26" MaxWidth="1240" HorizontalAlignment="Left">
+            <StackPanel Spacing="8">
+                <TextBlock Text="NovaSpice Studio" FontSize="48" FontWeight="SemiBold" CharacterSpacing="-20">
+                    <TextBlock.Foreground>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#7C9CFF" Offset="0"/>
+                            <GradientStop Color="#A78BFA" Offset="0.5"/>
+                            <GradientStop Color="#2DD4BF" Offset="1"/>
+                        </LinearGradientBrush>
+                    </TextBlock.Foreground>
+                </TextBlock>
+                <TextBlock Text="A modern cockpit for LTspice — edit, simulate, probe and analyse in one place."
+                           FontSize="17" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <InfoBar x:Name="LtBar" IsOpen="True" IsClosable="False" Title="LTspice">
+                <InfoBar.ActionButton>
+                    <Button x:Name="LtButton" Content="Set location…" Click="LtButton_Click"/>
+                </InfoBar.ActionButton>
+            </InfoBar>
+
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+                <Button Style="{StaticResource CardButton}" Click="OpenCircuit_Click">
+                    <StackPanel Spacing="10">
+                        <FontIcon Glyph="&#xE8E5;" FontSize="28" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="Open a circuit" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="Schematic (.asc) or netlist (.net, .cir, .sp)" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1" Style="{StaticResource CardButton}" Click="OpenRaw_Click">
+                    <StackPanel Spacing="10">
+                        <FontIcon Glyph="&#xE8A5;" FontSize="28" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="Open waveforms" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="Any LTspice result file (.raw) — binary, ASCII, stepped" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Style="{StaticResource CardButton}" Click="DemoBuck_Click">
+                    <StackPanel Spacing="10">
+                        <FontIcon Glyph="&#xE945;" FontSize="28" HorizontalAlignment="Left" Foreground="#FFB547"/>
+                        <TextBlock Text="Demo · Buck converter" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="12 V → 5 V at 500 kHz. Transient start-up with LC ringing." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="3" Style="{StaticResource CardButton}" Click="DemoRc_Click">
+                    <StackPanel Spacing="10">
+                        <FontIcon Glyph="&#xE9D9;" FontSize="28" HorizontalAlignment="Left" Foreground="#2DD4BF"/>
+                        <TextBlock Text="Demo · RC filter sweep" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="2nd-order RC ladder, AC Bode plot stepped over three capacitors." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <StackPanel Spacing="8">
+                <TextBlock Text="Recent" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                <TextBlock x:Name="NoRecent" Text="Nothing yet — open a file or drop one anywhere on the window."
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                <ListView x:Name="RecentList" IsItemClickEnabled="True" ItemClick="Recent_ItemClick" SelectionMode="None" MaxHeight="340">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,6">
+                                <FontIcon Glyph="&#xE8A5;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock Text="{x:Bind}" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <Border CornerRadius="12" Padding="18,14" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Shortcuts" FontWeight="SemiBold"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="Ctrl+K command palette · F5 run · Ctrl+O open · Ctrl+S save · Ctrl+1…4 switch views · in the plot: drag to zoom, wheel zooms X, Ctrl+wheel zooms Y, right-drag pans, double-click fits, C toggles cursors · double-click a wire, label or part in the schematic to plot it."/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
